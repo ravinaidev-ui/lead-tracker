@@ -44,31 +44,16 @@ export default function UserManagement() {
   useEffect(() => {
     fetchUsers();
 
-    console.log('Initializing User Management Real-time Sync (WebSockets + Polling Fallback)...');
+    console.log('Initializing User Management High-Reliability Sync Polling Layout...');
 
-    // Set up Real-time listener for user updates
-    const usersChannel = getSupabase().channel('users-changes-um')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
-        console.log('⚡ Real-time Event received: "users" table updated.', payload);
-        fetchUsers();
-      })
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          console.log('✅ Connected to real-time sync for: User Management');
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn(`⚠️ User Management real-time connection status: ${status}. Active background polling will handle syncing.`, err);
-        }
-      });
-
-    // High-reliability Polling Fallback (syncs Team members list every 8 seconds)
+    // High-reliability Polling (syncs Team members list every 6 seconds)
     const pollInterval = setInterval(() => {
       console.log('🔄 User Management background sync: Refreshing users database list...');
       fetchUsers();
-    }, 8000);
+    }, 6000);
 
     return () => {
-      console.log('Tearing down User Management Real-time subscriptions and background timers...');
-      getSupabase().removeChannel(usersChannel);
+      console.log('Tearing down User Management background timers...');
       clearInterval(pollInterval);
     };
   }, []);
@@ -164,8 +149,8 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error adding user:', err);
       const errMsg = err.message || 'Failed to create user.';
-      setError(`Database Error: ${errMsg}. Please run the Supabase Setup script in Settings.`);
-      toast.error(`Database Error: ${errMsg}. Check database schema under Settings.`);
+      setError(`Database Error: ${errMsg}. Please check your database connection or settings.`);
+      toast.error(`Database Error: ${errMsg}. Check database settings.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -228,8 +213,8 @@ export default function UserManagement() {
     } catch (err: any) {
       console.error('Error updating user:', err);
       const errMsg = err.message || 'Failed to update user.';
-      setError(`Database Error: ${errMsg}. Please run the Supabase Setup script in Settings.`);
-      toast.error(`Database Error: ${errMsg}. Check database schema under Settings.`);
+      setError(`Database Error: ${errMsg}. Please check your database connection or settings.`);
+      toast.error(`Database Error: ${errMsg}. Check database settings.`);
     } finally {
       setIsSubmitting(false);
     }
