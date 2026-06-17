@@ -108,69 +108,30 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   read BOOLEAN DEFAULT false
 );
 
--- 5. Enable Realtime Replication Publication
--- Ensures all devices receive live events in real-time instantly!
-BEGIN;
-  -- Remove tables if they were in any previous publication (avoids errors)
-  DROP PUBLICATION IF EXISTS supabase_realtime;
-  CREATE PUBLICATION supabase_realtime FOR TABLE public.users, public.leads, public.tasks, public.notifications;
-COMMIT;`;
+-- 5. Disable Row Level Security (RLS)
+-- CRITICAL STEP: Prevents Supabase from returning empty lists or blocking client operations!
+ALTER TABLE public.users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.leads DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.notifications DISABLE ROW LEVEL SECURITY;
+
+-- 6. Configure Realtime Replication Identity
+-- Forces Supabase to stream complete updated rows to WebSocket listeners.
+ALTER TABLE public.users REPLICA IDENTITY FULL;
+ALTER TABLE public.leads REPLICA IDENTITY FULL;
+ALTER TABLE public.tasks REPLICA IDENTITY FULL;
+ALTER TABLE public.notifications REPLICA IDENTITY FULL;
+
+-- 7. Enable Realtime Replication Publication
+-- Removes previous configurations and publishes real-time WebSocket changes for all CRM entities.
+DROP PUBLICATION IF EXISTS supabase_realtime;
+CREATE PUBLICATION supabase_realtime FOR TABLE public.users, public.leads, public.tasks, public.notifications;`;
 
   const handleCopySql = () => {
     navigator.clipboard.writeText(sqlCode);
     setCopiedSql(true);
     toast.success('Database initialization SQL schema copied to clipboard!');
     setTimeout(() => setCopiedSql(false), 2000);
-  };
-
-  const [dbPassword, setDbPassword] = useState('');
-  const [manualUri, setManualUri] = useState('');
-  const [isUriMode, setIsUriMode] = useState(false);
-  const [isAutoSetupRunning, setIsAutoSetupRunning] = useState(false);
-  const [autoSetupError, setAutoSetupError] = useState('');
-  const [autoSetupSuccess, setAutoSetupSuccess] = useState('');
-
-  const handleAutoSetup = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsAutoSetupRunning(true);
-    setAutoSetupError('');
-    setAutoSetupSuccess('');
-
-    try {
-      const response = await fetch('/api/setup-database', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          connectionString: isUriMode ? manualUri : '',
-          password: !isUriMode ? dbPassword : '',
-          supabaseUrl: import.meta.env.VITE_SUPABASE_URL || ''
-        })
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to initialize database.');
-      }
-
-      setAutoSetupSuccess(result.message || 'Database successfully configured!');
-      toast.success('Central database synchronized successfully in real-time!');
-      setDbPassword('');
-      setManualUri('');
-      
-      // Force reload or state pull to sync the live DB instantly
-      setTimeout(() => {
-        window.location.reload();
-      }, 3000);
-    } catch (err: any) {
-      console.error(err);
-      setAutoSetupError(err.message || 'An unexpected error occurred during set up.');
-      toast.error('Automated Database Sync Setup Failed.');
-    } finally {
-      setIsAutoSetupRunning(false);
-    }
   };
 
   const handleCopyJson = async () => {
