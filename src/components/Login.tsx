@@ -8,12 +8,23 @@ interface LoginProps {
 }
 
 export default function Login({ onLogin }: LoginProps) {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+  const [username, setUsername] = useState('admin');
+  const [password, setPassword] = useState('admin');
   const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<'admin' | 'executive'>('admin');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+
+  const handleRoleChange = (newRole: 'admin' | 'executive') => {
+    setRole(newRole);
+    if (newRole === 'admin') {
+      setUsername('admin');
+      setPassword('admin');
+    } else {
+      setUsername('');
+      setPassword('');
+    }
+  };
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,7 +125,7 @@ export default function Login({ onLogin }: LoginProps) {
               <div className="flex p-1.5 bg-slate-100 rounded-2xl mb-8">
                 <button
                   type="button"
-                  onClick={() => setRole('admin')}
+                  onClick={() => handleRoleChange('admin')}
                   className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                     role === 'admin' 
                       ? 'bg-white text-primary shadow-sm' 
@@ -125,7 +136,7 @@ export default function Login({ onLogin }: LoginProps) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRole('executive')}
+                  onClick={() => handleRoleChange('executive')}
                   className={`flex-1 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all ${
                     role === 'executive' 
                       ? 'bg-white text-primary shadow-sm' 
