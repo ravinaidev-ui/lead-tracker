@@ -71,16 +71,20 @@ export default function App() {
 
   const handleLogin = async (username?: string, password?: string, role?: 'admin' | 'executive') => {
     try {
+      if (!username || !password) {
+        throw new Error('Please enter both username/email and password');
+      }
+
       let userData: User | null = null;
       let databaseErrorToThrow: any = null;
+      let userFoundInDb = false;
       
       try {
-        // Try to query Supabase users table
+        // Query Supabase for the user by username or email
         const { data: userDoc, error } = await getSupabase()
           .from('users')
           .select('*')
           .or(`username.eq.${username},email.eq.${username}`)
-          .eq('password', password)
           .maybeSingle();
 
         if (error) {
@@ -91,38 +95,57 @@ export default function App() {
             throw new Error(`Database error: ${error.message}`);
           }
         } else if (userDoc) {
-          userData = {
-            ...userDoc,
-            role: (userDoc as any).role
-          } as User;
+          userFoundInDb = true;
+          // STRICT validation against the database: check if the typed password matches the stored password exactly
+          if (userDoc.password === password) {
+            userData = {
+              ...userDoc,
+              role: (userDoc as any).role
+            } as User;
+          } else {
+            throw new Error('Invalid password. Please check your password and try again.');
+          }
         }
       } catch (dbErr: any) {
         console.warn('Database login failed (network or other issue):', dbErr);
+        // If password strictly failed above, rethrow it so we don't bypass with fallback
+        if (dbErr.message && dbErr.message.includes('Invalid password')) {
+          throw dbErr;
+        }
         databaseErrorToThrow = dbErr;
       }
 
-      // Check local cache if database didn't return user (or failed) to support instant offline & real-time updates
-      if (!userData) {
+      // Check local cache if database didn't return user, OR if there was a database/network error
+      if (!userData && !userFoundInDb) {
         const cachedUsersStr = localStorage.getItem('cached_users');
         if (cachedUsersStr) {
           try {
             const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+            // Look up the user in cache
             const foundUser = cachedUsers.find(u => 
-              (u.username === username || u.email === username) && 
-              u.password === password
+              u.username === username || u.email === username
             );
             if (foundUser) {
-              console.log('User found in local cache with matching credentials:', foundUser.username);
-              userData = foundUser;
+              // Validate the password strictly against the cache copy
+              if (foundUser.password === password) {
+                console.log('User found in local cache with matching credentials:', foundUser.username);
+                userData = foundUser;
+              } else {
+                throw new Error('Invalid password. Please check your password and try again.');
+              }
             }
-          } catch (e) {
+          } catch (e: any) {
             console.error('Failed to parse cached users:', e);
+            if (e.message && e.message.includes('Invalid password')) {
+              throw e;
+            }
           }
         }
       }
 
-      // fallback: hardcoded system admin check if still not found in any database or cache
-      if (!userData && username === 'admin' && password === 'admin') {
+      // Fallback: If no user was found anywhere, check for the default hardcoded admin (username: admin, password: admin)
+      // but only if there is no other admin record in the database/cache that overrides it.
+      if (!userData && !userFoundInDb && username === 'admin' && password === 'admin') {
         userData = {
           id: '00000000-0000-0000-0000-000000000000',
           username: 'admin',
@@ -135,29 +158,14 @@ export default function App() {
         };
       }
 
-      // If database / network error happened and still no user, synthesize a guest/temp session
-      if (!userData && databaseErrorToThrow) {
-        const isEmail = username?.includes('@');
-        const simpleUsername = isEmail ? username?.split('@')[0] : username;
-        userData = {
-          id: 'temp-' + (simpleUsername || 'user'),
-          username: simpleUsername || 'user',
-          password: password || '',
-          role: role || 'executive',
-          name: simpleUsername ? (simpleUsername.charAt(0).toUpperCase() + simpleUsername.slice(1)) : 'User',
-          email: isEmail ? (username || '') : `${simpleUsername}@example.com`,
-          incentiveThreshold: 60000,
-          createdAt: new Date().toISOString()
-        };
-      }
-
+      // If they are not found and the password is correct/wrong, don't allow synthesis of untrusted sessions
       if (!userData) {
-        throw new Error('Invalid username or password');
+        throw new Error('Invalid username or password. Please verify your credentials.');
       }
 
       // Check if role matches
       if (userData.role !== role) {
-        throw new Error(`Invalid credentials for ${role} login`);
+        throw new Error(`Invalid credentials for ${role} login. User role is ${userData.role}.`);
       }
 
       setCurrentUser(userData);
