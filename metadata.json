@@ -1,5 +1,8 @@
 {
   "name": "Ravins Tech DLP Portal",
   "description": "A comprehensive DLP management system featuring lead tracking, reporting, and user management with a blue and orange theme.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }

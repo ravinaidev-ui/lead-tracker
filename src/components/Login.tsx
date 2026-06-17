@@ -18,11 +18,21 @@ export default function Login({ onLogin }: LoginProps) {
   const handleRoleChange = (newRole: 'admin' | 'executive') => {
     setRole(newRole);
     if (newRole === 'admin') {
-      setUsername('admin');
-      setPassword('admin');
+      // Only set to default if they haven't typed a custom username or password
+      if (!username || username === 'admin' || username === 'executive') {
+        setUsername('admin');
+      }
+      if (!password || password === 'admin' || password === '') {
+        setPassword('admin');
+      }
     } else {
-      setUsername('');
-      setPassword('');
+      // Clear defaults if switching back to executive
+      if (username === 'admin') {
+        setUsername('');
+      }
+      if (password === 'admin') {
+        setPassword('');
+      }
     }
   };
 
