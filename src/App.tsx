@@ -101,58 +101,28 @@ export default function App() {
         databaseErrorToThrow = dbErr;
       }
 
-      // Fallback Strategy if database call failed or returned NetworkError
-      if (!userData && databaseErrorToThrow) {
-        // 1. Check admin / admin credentials
-        if (username === 'admin' && password === 'admin') {
-          userData = {
-            id: '00000000-0000-0000-0000-000000000000',
-            username: 'admin',
-            password: 'admin',
-            role: 'admin',
-            name: 'System Admin',
-            email: 'admin@ravins.tech',
-            incentiveThreshold: 60000,
-            createdAt: new Date().toISOString()
-          };
-        } else {
-          // 2. Check local cached users list
-          const cachedUsersStr = localStorage.getItem('cached_users');
-          if (cachedUsersStr) {
-            try {
-              const cachedUsers = JSON.parse(cachedUsersStr) as User[];
-              const foundUser = cachedUsers.find(u => 
-                (u.username === username || u.email === username) && 
-                u.password === password
-              );
-              if (foundUser) {
-                userData = foundUser;
-              }
-            } catch (e) {
-              console.error('Failed to parse cached users:', e);
+      // Check local cache if database didn't return user (or failed) to support instant offline & real-time updates
+      if (!userData) {
+        const cachedUsersStr = localStorage.getItem('cached_users');
+        if (cachedUsersStr) {
+          try {
+            const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+            const foundUser = cachedUsers.find(u => 
+              (u.username === username || u.email === username) && 
+              u.password === password
+            );
+            if (foundUser) {
+              console.log('User found in local cache with matching credentials:', foundUser.username);
+              userData = foundUser;
             }
-          }
-          
-          // 3. Fallback: completely offline helper if the system is experiencing a network/db error
-          if (!userData) {
-            const isEmail = username?.includes('@');
-            const simpleUsername = isEmail ? username?.split('@')[0] : username;
-            userData = {
-              id: 'temp-' + (simpleUsername || 'user'),
-              username: simpleUsername || 'user',
-              password: password || '',
-              role: role || 'executive',
-              name: simpleUsername ? (simpleUsername.charAt(0).toUpperCase() + simpleUsername.slice(1)) : 'User',
-              email: isEmail ? (username || '') : `${simpleUsername}@example.com`,
-              incentiveThreshold: 60000,
-              createdAt: new Date().toISOString()
-            };
+          } catch (e) {
+            console.error('Failed to parse cached users:', e);
           }
         }
       }
 
-      // If database succeeded but returned null (no match) and was NOT a network error, check admin/admin
-      if (!userData && !databaseErrorToThrow && username === 'admin' && password === 'admin') {
+      // fallback: hardcoded system admin check if still not found in any database or cache
+      if (!userData && username === 'admin' && password === 'admin') {
         userData = {
           id: '00000000-0000-0000-0000-000000000000',
           username: 'admin',
@@ -160,6 +130,22 @@ export default function App() {
           role: 'admin',
           name: 'System Admin',
           email: 'admin@ravins.tech',
+          incentiveThreshold: 60000,
+          createdAt: new Date().toISOString()
+        };
+      }
+
+      // If database / network error happened and still no user, synthesize a guest/temp session
+      if (!userData && databaseErrorToThrow) {
+        const isEmail = username?.includes('@');
+        const simpleUsername = isEmail ? username?.split('@')[0] : username;
+        userData = {
+          id: 'temp-' + (simpleUsername || 'user'),
+          username: simpleUsername || 'user',
+          password: password || '',
+          role: role || 'executive',
+          name: simpleUsername ? (simpleUsername.charAt(0).toUpperCase() + simpleUsername.slice(1)) : 'User',
+          email: isEmail ? (username || '') : `${simpleUsername}@example.com`,
           incentiveThreshold: 60000,
           createdAt: new Date().toISOString()
         };
@@ -202,18 +188,27 @@ export default function App() {
       setCurrentUser(newUser);
       localStorage.setItem('crm_user', JSON.stringify(newUser));
       
-      // Also update in cached users list if it exists
+      // Always update in cached users list
       const cachedUsersStr = localStorage.getItem('cached_users');
+      let updatedUsersList: User[] = [];
       if (cachedUsersStr) {
         try {
-          const cachedUsers = JSON.parse(cachedUsersStr);
-          const updatedUsers = cachedUsers.map((u: User) => u.id === currentUser.id ? { ...u, ...updatedData } : u);
-          localStorage.setItem('cached_users', JSON.stringify(updatedUsers));
-          setUsers(updatedUsers);
+          const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+          const exists = cachedUsers.some((u: User) => u.id === currentUser.id);
+          if (exists) {
+            updatedUsersList = cachedUsers.map((u: User) => u.id === currentUser.id ? { ...u, ...updatedData } : u);
+          } else {
+            updatedUsersList = [...cachedUsers, { ...currentUser, ...updatedData }];
+          }
         } catch (e) {
           console.error('Error updating cached users:', e);
+          updatedUsersList = [{ ...currentUser, ...updatedData }];
         }
+      } else {
+        updatedUsersList = [{ ...currentUser, ...updatedData }];
       }
+      localStorage.setItem('cached_users', JSON.stringify(updatedUsersList));
+      setUsers(updatedUsersList);
       
       toast.success('Profile updated successfully!');
     } catch (error) {

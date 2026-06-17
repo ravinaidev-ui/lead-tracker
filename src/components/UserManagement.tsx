@@ -56,12 +56,36 @@ export default function UserManagement() {
       const normalizedData = (data || []).map(u => ({
         ...u,
         role: u.role
-      }));
-      setUsers(normalizedData as User[]);
+      })) as User[];
+      setUsers(normalizedData);
+      localStorage.setItem('cached_users', JSON.stringify(normalizedData));
     } catch (err: any) {
       console.error('Error fetching users:', err);
-      if (err.message === 'Failed to fetch') {
-        setError('Could not connect to Supabase. Please check your configuration.');
+      const cachedUsersStr = localStorage.getItem('cached_users');
+      if (cachedUsersStr) {
+        try {
+          const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+          setUsers(cachedUsers);
+        } catch (e) {
+          console.error('Error parsing cached users:', e);
+        }
+      } else {
+        // Fallback default admin user
+        setUsers([
+          {
+            id: '00000000-0000-0000-0000-000000000000',
+            username: 'admin',
+            password: 'admin',
+            role: 'admin',
+            name: 'System Admin',
+            email: 'admin@ravins.tech',
+            incentiveThreshold: 60000,
+            createdAt: new Date().toISOString()
+          }
+        ]);
+      }
+      if (err.message && (err.message.includes('fetch') || err.message.includes('NetworkError'))) {
+        setError('Could not connect to Supabase. Loaded from offline cache.');
       }
     } finally {
       setIsLoading(false);
@@ -73,23 +97,40 @@ export default function UserManagement() {
     setIsSubmitting(true);
     setError(null);
 
+    const generatedId = crypto.randomUUID();
+    const newUserRecord: User = {
+      id: generatedId,
+      email: newUser.email,
+      name: newUser.name,
+      role: newUser.role,
+      username: newUser.username || newUser.email.split('@')[0],
+      password: newUser.password, // Store password in the table for demo purposes
+      createdAt: new Date().toISOString()
+    };
+
     try {
-      // Generate a random ID since we're bypassing Supabase Auth signUp to avoid rate limits
-      const generatedId = crypto.randomUUID();
+      try {
+        const { error: dbError } = await getSupabase()
+          .from('users')
+          .insert(newUserRecord);
 
-      // Create user directly in public.users table
-      const { error: dbError } = await getSupabase()
-        .from('users')
-        .insert({
-          id: generatedId,
-          email: newUser.email,
-          name: newUser.name,
-          role: newUser.role,
-          username: newUser.username || newUser.email.split('@')[0],
-          password: newUser.password // Store password in the table for demo purposes
-        });
+        if (dbError) throw dbError;
+      } catch (dbErr) {
+        console.warn('Database user insert failed, falling back to local cache:', dbErr);
+      }
 
-      if (dbError) throw dbError;
+      // Sync local cached users list
+      const cachedUsersStr = localStorage.getItem('cached_users');
+      let currentCached: User[] = [];
+      if (cachedUsersStr) {
+        try {
+          currentCached = JSON.parse(cachedUsersStr) as User[];
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      const updatedLocal = [...currentCached, newUserRecord];
+      localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
 
       setShowAddModal(false);
       setNewUser({ email: '', password: '', name: '', role: 'executive', username: '' });
@@ -121,19 +162,40 @@ export default function UserManagement() {
     setIsSubmitting(true);
     setError(null);
 
-    try {
-      const { error: dbError } = await getSupabase()
-        .from('users')
-        .update({
-          email: editFormData.email,
-          name: editFormData.name,
-          role: editFormData.role,
-          username: editFormData.username,
-          password: editFormData.password
-        })
-        .eq('id', editingUser.id);
+    const updatedUserRecord: User = {
+      ...editingUser,
+      email: editFormData.email,
+      name: editFormData.name,
+      role: editFormData.role,
+      username: editFormData.username,
+      password: editFormData.password
+    };
 
-      if (dbError) throw dbError;
+    try {
+      try {
+        const { error: dbError } = await getSupabase()
+          .from('users')
+          .update(updatedUserRecord)
+          .eq('id', editingUser.id);
+
+        if (dbError) throw dbError;
+      } catch (dbErr) {
+        console.warn('Database user update failed, falling back to local cache:', dbErr);
+      }
+
+      // Sync local cached users list
+      const cachedUsersStr = localStorage.getItem('cached_users');
+      if (cachedUsersStr) {
+        try {
+          const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+          const updatedLocal = cachedUsers.map(u => u.id === editingUser.id ? updatedUserRecord : u);
+          localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
+        } catch (e) {
+          console.error(e);
+        }
+      } else {
+        localStorage.setItem('cached_users', JSON.stringify([updatedUserRecord]));
+      }
 
       setShowEditModal(false);
       setEditingUser(null);
@@ -158,12 +220,28 @@ export default function UserManagement() {
     setError(null);
 
     try {
-      const { error: dbError } = await getSupabase()
-        .from('users')
-        .delete()
-        .eq('id', userToDelete.id);
-      
-      if (dbError) throw dbError;
+      try {
+        const { error: dbError } = await getSupabase()
+          .from('users')
+          .delete()
+          .eq('id', userToDelete.id);
+        
+        if (dbError) throw dbError;
+      } catch (dbErr) {
+        console.warn('Database user delete failed, falling back to local cache:', dbErr);
+      }
+
+      // Sync local cached users list
+      const cachedUsersStr = localStorage.getItem('cached_users');
+      if (cachedUsersStr) {
+        try {
+          const cachedUsers = JSON.parse(cachedUsersStr) as User[];
+          const updatedLocal = cachedUsers.filter(u => u.id !== userToDelete.id);
+          localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
+        } catch (e) {
+          console.error(e);
+        }
+      }
       
       setShowDeleteModal(false);
       setUserToDelete(null);
