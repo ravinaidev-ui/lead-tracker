@@ -43,15 +43,32 @@ export default function UserManagement() {
   useEffect(() => {
     fetchUsers();
 
+    console.log('Initializing User Management Real-time Sync (WebSockets + Polling Fallback)...');
+
     // Set up Real-time listener for user updates
     const usersChannel = getSupabase().channel('users-changes-um')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        console.log('⚡ Real-time Event received: "users" table updated.', payload);
         fetchUsers();
       })
-      .subscribe();
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Connected to real-time sync for: User Management');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`⚠️ User Management real-time connection status: ${status}. Active background polling will handle syncing.`, err);
+        }
+      });
+
+    // High-reliability Polling Fallback (syncs Team members list every 8 seconds)
+    const pollInterval = setInterval(() => {
+      console.log('🔄 User Management background sync: Refreshing users database list...');
+      fetchUsers();
+    }, 8000);
 
     return () => {
+      console.log('Tearing down User Management Real-time subscriptions and background timers...');
       getSupabase().removeChannel(usersChannel);
+      clearInterval(pollInterval);
     };
   }, []);
 

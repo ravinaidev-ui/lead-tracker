@@ -585,30 +585,73 @@ export default function App() {
 
     fetchData();
 
-    // Real-time Subscriptions
+    console.log('Initializing Centralized Supabase Real-time Sync (WebSockets + Polling Fallback)...');
+
+    // 1. WebSocket Subscriptions with detailed diagnostic callbacks
     const leadsChannel = getSupabase().channel('leads-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => fetchData())
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+        console.log('⚡ Real-time Event received: "leads" table changed.', payload);
+        fetchData();
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') console.log('✅ Connected to real-time sync for: Leads');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`⚠️ Leads real-time connection status: ${status}. Active background polling will handle syncing.`, err);
+        }
+      });
 
     const tasksChannel = getSupabase().channel('tasks-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => fetchData())
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, (payload) => {
+        console.log('⚡ Real-time Event received: "tasks" table changed.', payload);
+        fetchData();
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') console.log('✅ Connected to real-time sync for: Tasks');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`⚠️ Tasks real-time connection status: ${status}. Active background polling will handle syncing.`, err);
+        }
+      });
 
     const notificationsChannel = getSupabase().channel('notifications-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `userId=eq.${currentUser.id}` }, () => fetchData())
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'notifications' }, (payload) => {
+        console.log('⚡ Real-time Event received: "notifications" table changed.', payload);
+        fetchData();
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') console.log('✅ Connected to real-time sync for: Notifications');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`⚠️ Notifications real-time connection status: ${status}.`, err);
+        }
+      });
 
     const usersChannel = getSupabase().channel('users-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => fetchData())
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, (payload) => {
+        console.log('⚡ Real-time Event received: "users" table changed.', payload);
+        fetchData();
+      })
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') console.log('✅ Connected to real-time sync for: Users');
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn(`⚠️ Users real-time connection status: ${status}.`, err);
+        }
+      });
+
+    // 2. High-reliability Polling Fallback (syncs everything every 8 seconds)
+    // This handles any scenarios where WebSockets are blocked by sandboxed iframes or network policies.
+    const pollInterval = setInterval(() => {
+      console.log('🔄 Centralized background sync: Checking for database mutations...');
+      fetchData();
+    }, 8000);
 
     return () => {
+      console.log('Tearing down Real-time subscriptions and background timers...');
       getSupabase().removeChannel(leadsChannel);
       getSupabase().removeChannel(tasksChannel);
       getSupabase().removeChannel(notificationsChannel);
-      if (usersChannel) getSupabase().removeChannel(usersChannel);
+      getSupabase().removeChannel(usersChannel);
+      clearInterval(pollInterval);
     };
-  }, [currentUser, isAuthReady]);
+  }, [currentUser?.id, isAuthReady]);
 
   // Redirect non-admin users from restricted tabs
   useEffect(() => {
