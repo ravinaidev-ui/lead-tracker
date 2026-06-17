@@ -42,6 +42,17 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
+
+    // Set up Real-time listener for user updates
+    const usersChannel = getSupabase().channel('users-changes-um')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'users' }, () => {
+        fetchUsers();
+      })
+      .subscribe();
+
+    return () => {
+      getSupabase().removeChannel(usersChannel);
+    };
   }, []);
 
   const fetchUsers = async () => {

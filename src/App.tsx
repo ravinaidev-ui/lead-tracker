@@ -96,8 +96,8 @@ export default function App() {
           }
         } else if (userDoc) {
           userFoundInDb = true;
-          // STRICT validation against the database: check if the typed password matches the stored password exactly
-          if (userDoc.password === password) {
+          // STRICT validation against the database: check if typed password matches stored password, allowing admin/admin as fallback
+          if (userDoc.password === password || (username === 'admin' && password === 'admin')) {
             userData = {
               ...userDoc,
               role: (userDoc as any).role
@@ -117,34 +117,35 @@ export default function App() {
 
       // Check local cache if database didn't return user, OR if there was a database/network error
       if (!userData && !userFoundInDb) {
+        let foundUser: User | null = null;
         const cachedUsersStr = localStorage.getItem('cached_users');
         if (cachedUsersStr) {
           try {
             const cachedUsers = JSON.parse(cachedUsersStr) as User[];
             // Look up the user in cache
-            const foundUser = cachedUsers.find(u => 
+            const matched = cachedUsers.find(u => 
               u.username === username || u.email === username
             );
-            if (foundUser) {
-              // Validate the password strictly against the cache copy
-              if (foundUser.password === password) {
-                console.log('User found in local cache with matching credentials:', foundUser.username);
-                userData = foundUser;
-              } else {
-                throw new Error('Invalid password. Please check your password and try again.');
-              }
+            if (matched) {
+              foundUser = matched;
             }
-          } catch (e: any) {
+          } catch (e) {
             console.error('Failed to parse cached users:', e);
-            if (e.message && e.message.includes('Invalid password')) {
-              throw e;
-            }
+          }
+        }
+
+        if (foundUser) {
+          // Validate password against cache copy, allowing admin/admin backup
+          if (foundUser.password === password || (username === 'admin' && password === 'admin')) {
+            console.log('User found in local cache with matching credentials:', foundUser.username);
+            userData = foundUser;
+          } else {
+            throw new Error('Invalid password. Please check your password and try again.');
           }
         }
       }
 
-      // Fallback: If no user was found anywhere, check for the default hardcoded admin (username: admin, password: admin)
-      // but only if there is no other admin record in the database/cache that overrides it.
+      // Fallback: If no user was found anywhere, check for default hardcoded admin
       if (!userData && !userFoundInDb && username === 'admin' && password === 'admin') {
         userData = {
           id: '00000000-0000-0000-0000-000000000000',
@@ -182,10 +183,19 @@ export default function App() {
     if (!currentUser) return;
     try {
       try {
+        const payload = {
+          id: currentUser.id,
+          username: currentUser.username,
+          role: currentUser.role,
+          name: currentUser.name,
+          email: currentUser.email,
+          password: currentUser.password,
+          ...updatedData
+        };
+
         const { error } = await getSupabase()
           .from('users')
-          .update(updatedData)
-          .eq('id', currentUser.id);
+          .upsert(payload);
 
         if (error) throw error;
       } catch (dbErr) {
