@@ -376,176 +376,72 @@ COMMIT;`;
 
             {/* Supabase Database Schema Sync Card (Admin Only) */}
             {isAdmin && (
-              <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6">
+              <div className="bg-white p-8 rounded-2xl shadow-sm border border-slate-100 space-y-6 animate-fade-in" id="supabase-realtime-schema-panel">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center">
                       <Database size={20} />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-slate-800">1-Click Centralized Database Sync</h3>
-                      <p className="text-xs text-slate-400">Initialize central database tables with zero manual SQL commands</p>
+                      <h3 className="text-lg font-bold text-slate-800">Supabase Realtime Schema Sync</h3>
+                      <p className="text-xs text-slate-400">Direct SQL database script to enable immediate websocket updates across devices</p>
                     </div>
                   </div>
-                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black tracking-wider uppercase rounded-full">Automated Mode</span>
+                  <span className="px-3 py-1 bg-emerald-100 text-emerald-800 text-[10px] font-black tracking-wider uppercase rounded-full">Manual SQL Mode</span>
                 </div>
 
-                <div className="p-4 bg-amber-50 rounded-xl border border-amber-100 flex gap-3 text-amber-800">
-                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
-                  <div className="text-xs space-y-1.5 font-medium leading-relaxed">
-                    <p className="font-bold text-amber-900">Why are my devices not synchronizing?</p>
+                <div className="p-4 bg-emerald-50/65 rounded-xl border border-emerald-100/60 flex gap-3 text-emerald-800">
+                  <span className="text-lg leading-none select-none">🔌</span>
+                  <div className="text-xs space-y-1 font-medium leading-relaxed">
+                    <p className="font-bold text-emerald-900">Active Realtime Listener Connected</p>
                     <p>
-                      When the central Supabase database is empty, each system is forced to save and load data locally. To unify your data so additions, deletions, and password modifications automatically sync across all computers instantly, you must initialize these tables.
+                      The app has been configured to subscribe to the Supabase WebSocket Replication publication channel. As soon as you run this script in your Supabase project, changes will reflect instantly across all clients in real-time!
                     </p>
                   </div>
                 </div>
 
-                <div className="p-5 bg-gradient-to-r from-emerald-50 to-teal-50/50 rounded-2xl border border-emerald-100/60 space-y-4">
-                  <div className="flex gap-2.5">
-                    <span className="w-6 h-6 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 animate-pulse">⚡</span>
-                    <div className="space-y-1">
-                      <h4 className="text-sm font-bold text-emerald-900">Instant Automated Provisioning</h4>
-                      <p className="text-xs text-emerald-700/90 leading-relaxed">
-                        Specify your password to automatically build the required <code className="bg-emerald-100/80 px-1 rounded font-mono font-bold">users</code>, <code className="bg-emerald-100/80 px-1 rounded font-mono font-bold">leads</code>, <code className="bg-emerald-100/80 px-1 rounded font-mono font-bold">tasks</code>, and <code className="bg-emerald-100/80 px-1 rounded font-mono font-bold">notifications</code> tables. No manual terminal steps!
-                      </p>
-                    </div>
-                  </div>
+                <div className="space-y-4">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400">Step-by-Step Activation Guide:</h4>
+                  <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2 font-medium leading-relaxed pl-1">
+                    <li>
+                      Log in to your central <strong className="text-slate-800">Supabase Console</strong> (<a href="https://supabase.com" target="_blank" rel="noopener noreferrer" className="text-primary underline font-bold">supabase.com</a>).
+                    </li>
+                    <li>
+                      Go to the <strong className="text-slate-800 font-bold">SQL Editor</strong> tab on the left-hand navigation sidebar.
+                    </li>
+                    <li>
+                      Click <strong className="text-slate-800 font-bold">New Query</strong>.
+                    </li>
+                    <li>
+                      Click the <strong className="text-slate-800 font-bold">Copy SQL Script</strong> button below to copy the optimized schema.
+                    </li>
+                    <li>
+                      Paste the code in the terminal and click <strong className="text-slate-800 font-bold">Run</strong>. Your tables will instantly begin streaming updates!
+                    </li>
+                  </ol>
+                </div>
 
-                  <form onSubmit={handleAutoSetup} className="p-5 bg-white rounded-xl border border-slate-100 space-y-4 shadow-sm">
-                    {/* Setup Mode Toggle */}
-                    <div className="flex gap-4 border-b border-slate-100 pb-3 mb-1">
-                      <button
-                        type="button"
-                        onClick={() => setIsUriMode(false)}
-                        className={cn(
-                          "pb-2 font-bold text-xs border-b-2 transition-all cursor-pointer",
-                          !isUriMode ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        Project DB Password (Recommended)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsUriMode(true)}
-                        className={cn(
-                          "pb-2 font-bold text-xs border-b-2 transition-all cursor-pointer",
-                          isUriMode ? "border-primary text-primary" : "border-transparent text-slate-400 hover:text-slate-600"
-                        )}
-                      >
-                        Direct Connection URI
-                      </button>
-                    </div>
-
-                    {!isUriMode ? (
-                      <div className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <label className="text-xs font-bold text-slate-700">Supabase Database Password</label>
-                          <a 
-                            href="https://supabase.com" 
-                            target="_blank" 
-                            rel="noopener noreferrer" 
-                            className="text-[10px] text-primary hover:underline font-bold cursor-pointer"
-                          >
-                            Find Password on Supabase ↗
-                          </a>
-                        </div>
-                        <input
-                          type="password"
-                          placeholder="Enter your central database password"
-                          value={dbPassword}
-                          onChange={(e) => setDbPassword(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-xs transition-all font-medium text-slate-800"
-                          required={!isUriMode}
-                        />
-                        <p className="text-[10px] text-slate-450 leading-normal">
-                          This is the password you set while creating the database. Target endpoint: <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[9px] text-slate-650">{import.meta.env.VITE_SUPABASE_URL || 'Not Configured'}</code>
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <label className="text-xs font-bold text-slate-700">Postgre Connection URI</label>
-                        <input
-                          type="text"
-                          placeholder="postgres://postgres:[password]@db.[project-id].supabase.co:5432/postgres"
-                          value={manualUri}
-                          onChange={(e) => setManualUri(e.target.value)}
-                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-xs transition-all font-mono text-slate-850"
-                          required={isUriMode}
-                        />
-                        <p className="text-[10px] text-slate-450 leading-normal">
-                          Found under Project Settings &gt; Database &gt; Connection string &gt; URI. Replace the placeholder password with your actual password.
-                        </p>
-                      </div>
-                    )}
-
-                    {autoSetupError && (
-                      <div className="p-3 bg-red-50 text-red-700 rounded-lg text-[11px] font-bold flex items-center gap-2 border border-red-100">
-                        <AlertCircle size={14} className="shrink-0" />
-                        <span>{autoSetupError}</span>
-                      </div>
-                    )}
-
-                    {autoSetupSuccess && (
-                      <div className="p-3 bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-bold flex items-center gap-2 border border-emerald-100">
-                        <Check size={14} className="shrink-0" />
-                        <span className="leading-relaxed">{autoSetupSuccess}</span>
-                      </div>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={isAutoSetupRunning}
-                      className={cn(
-                        "w-full py-3 rounded-xl font-bold text-xs text-white shadow-lg cursor-pointer shadow-emerald-500/15 flex items-center justify-center gap-2 transition-all active:scale-95",
-                        isAutoSetupRunning ? "bg-emerald-400 cursor-not-allowed animate-pulse" : "bg-emerald-600 hover:bg-emerald-700"
-                      )}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Database Schema Setup Script:</span>
+                    <button 
+                      onClick={handleCopySql}
+                      className="px-3 py-1.5 bg-emerald-65 text-white hover:bg-emerald-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
                     >
-                      {isAutoSetupRunning ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          <span>Provisioning Tables & Realtime Replication...</span>
-                        </>
-                      ) : (
-                        <span>Setup Schema & Enable Realtime Sync</span>
-                      )}
+                      {copiedSql ? <Check size={14} className="text-emerald-100" /> : <Copy size={14} />}
+                      {copiedSql ? 'Copied to Clipboard!' : 'Copy SQL Script'}
                     </button>
-                  </form>
-                </div>
-
-                <details className="group border border-slate-100 rounded-2xl overflow-hidden bg-slate-50/50">
-                  <summary className="p-4 flex justify-between items-center font-bold text-xs text-slate-600 cursor-pointer select-none hover:bg-slate-50 transition-colors">
-                    <span className="flex items-center gap-2">
-                      <span>⚙️</span> Need Manual Control? View SQL Schema Script
-                    </span>
-                    <span className="text-xs transition-transform group-open:rotate-180">▼</span>
-                  </summary>
-                  <div className="p-5 border-t border-slate-100 bg-white space-y-4">
-                    <p className="text-xs text-slate-500 leading-relaxed">
-                      If you prefer manual configuration, you raw install SQL script is compiled below. Copy and execute it directly inside your Supabase Project SQL terminal:
-                    </p>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">Database Schema Setup Script:</span>
-                        <button 
-                          onClick={handleCopySql}
-                          className="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer"
-                        >
-                          {copiedSql ? <Check size={14} className="text-emerald-600" /> : <Copy size={14} />}
-                          {copiedSql ? 'Copied Script!' : 'Copy SQL Script'}
-                        </button>
-                      </div>
-                      <pre className="bg-slate-950 text-slate-300 font-mono text-[10px] p-5 rounded-2xl overflow-x-auto max-h-64 leading-relaxed border border-slate-800 select-all shadow-inner">
-                        {sqlCode}
-                      </pre>
-                    </div>
                   </div>
-                </details>
+                  <pre className="bg-slate-950 text-slate-200 font-mono text-[10px] p-5 rounded-2xl overflow-x-auto max-h-80 leading-relaxed border border-slate-800 select-all shadow-inner">
+                    {sqlCode}
+                  </pre>
+                </div>
 
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400 font-bold">
-                  <span>Target Protocol: Supabase REST API & Replication Pub</span>
+                  <span>Target Protocol: Supabase Websockets Realtime</span>
                   <span className="text-emerald-500 flex items-center gap-1 font-bold">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping inline-block" />
-                    High-Reliability Ready
+                    Websocket Streaming Online
                   </span>
                 </div>
               </div>

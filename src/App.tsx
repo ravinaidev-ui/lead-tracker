@@ -603,19 +603,47 @@ export default function App() {
 
     fetchData();
 
-    console.log('Initializing Centralized High-Reliability Sync Polling App...');
+    console.log('Initializing Centralized High-Reliability Sync Polling App & Realtime Listening...');
 
-    // High-reliability Polling Sync (syncs everything every 6 seconds)
-    // This handles all cross-device/cross-session synchronization seamlessly without requiring
-    // complex Postgres database publications, replication setup, or triggering RLS alerts.
+    // 1. WebSocket Live Realtime changes (works on top of PostgreSQL replica changes logs)
+    let dbChannel: any = null;
+    try {
+      if (isSupabaseConfigured()) {
+        console.log('🔌 Registering Supabase Postgres WebSocket Realtime Channels...');
+        dbChannel = getSupabase()
+          .channel('realtime-db-changes')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public' },
+            (payload) => {
+              console.log('⚡ Realtime table mutation received:', payload);
+              fetchData();
+            }
+          )
+          .subscribe((status) => {
+            console.log(`🔌 Supabase Realtime Subscription status:`, status);
+          });
+      }
+    } catch (e) {
+      console.error('Failed to init live realtime changes channel:', e);
+    }
+
+    // 2. High-reliability Polling Sync (syncs everything every 10 seconds as a strong fallback)
     const pollInterval = setInterval(() => {
       console.log('🔄 Centralized background sync: Checking for database mutations...');
       fetchData();
-    }, 6000);
+    }, 10000);
 
     return () => {
-      console.log('Tearing down background sync timers...');
+      console.log('Tearing down background sync and realtime channels...');
       clearInterval(pollInterval);
+      if (dbChannel) {
+        try {
+          dbChannel.unsubscribe();
+        } catch (unsubErr) {
+          console.error('Error unsubscribing channel:', unsubErr);
+        }
+      }
     };
   }, [currentUser?.id, isAuthReady]);
 
