@@ -8,6 +8,7 @@ import {
 import { User } from '../types';
 import { getSupabase, signUpUser } from '../supabase';
 import { cn } from '../lib/utils';
+import { toast } from 'sonner';
 
 export default function UserManagement() {
   const [users, setUsers] = useState<User[]>([]);
@@ -137,17 +138,13 @@ export default function UserManagement() {
     };
 
     try {
-      try {
-        const { error: dbError } = await getSupabase()
-          .from('users')
-          .insert(newUserRecord);
+      const { error: dbError } = await getSupabase()
+        .from('users')
+        .insert(newUserRecord);
 
-        if (dbError) throw dbError;
-      } catch (dbErr) {
-        console.warn('Database user insert failed, falling back to local cache:', dbErr);
-      }
+      if (dbError) throw dbError;
 
-      // Sync local cached users list
+      // Sync local cached users list - only on complete success
       const cachedUsersStr = localStorage.getItem('cached_users');
       let currentCached: User[] = [];
       if (cachedUsersStr) {
@@ -162,10 +159,13 @@ export default function UserManagement() {
 
       setShowAddModal(false);
       setNewUser({ email: '', password: '', name: '', role: 'executive', username: '' });
+      toast.success('User registered successfully in the centralized database!');
       fetchUsers();
     } catch (err: any) {
       console.error('Error adding user:', err);
-      setError(err.message || 'Failed to create user. Please try again.');
+      const errMsg = err.message || 'Failed to create user.';
+      setError(`Database Error: ${errMsg}. Please run the Supabase Setup script in Settings.`);
+      toast.error(`Database Error: ${errMsg}. Check database schema under Settings.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -200,18 +200,14 @@ export default function UserManagement() {
     };
 
     try {
-      try {
-        const { error: dbError } = await getSupabase()
-          .from('users')
-          .update(updatedUserRecord)
-          .eq('id', editingUser.id);
+      const { error: dbError } = await getSupabase()
+        .from('users')
+        .update(updatedUserRecord)
+        .eq('id', editingUser.id);
 
-        if (dbError) throw dbError;
-      } catch (dbErr) {
-        console.warn('Database user update failed, falling back to local cache:', dbErr);
-      }
+      if (dbError) throw dbError;
 
-      // Sync local cached users list
+      // Sync local cached users list - only on complete success
       const cachedUsersStr = localStorage.getItem('cached_users');
       if (cachedUsersStr) {
         try {
@@ -227,10 +223,13 @@ export default function UserManagement() {
 
       setShowEditModal(false);
       setEditingUser(null);
+      toast.success('User updated successfully in the centralized database!');
       fetchUsers();
     } catch (err: any) {
       console.error('Error updating user:', err);
-      setError(err.message || 'Failed to update user. Please try again.');
+      const errMsg = err.message || 'Failed to update user.';
+      setError(`Database Error: ${errMsg}. Please run the Supabase Setup script in Settings.`);
+      toast.error(`Database Error: ${errMsg}. Check database schema under Settings.`);
     } finally {
       setIsSubmitting(false);
     }
@@ -248,18 +247,14 @@ export default function UserManagement() {
     setError(null);
 
     try {
-      try {
-        const { error: dbError } = await getSupabase()
-          .from('users')
-          .delete()
-          .eq('id', userToDelete.id);
-        
-        if (dbError) throw dbError;
-      } catch (dbErr) {
-        console.warn('Database user delete failed, falling back to local cache:', dbErr);
-      }
+      const { error: dbError } = await getSupabase()
+        .from('users')
+        .delete()
+        .eq('id', userToDelete.id);
+      
+      if (dbError) throw dbError;
 
-      // Sync local cached users list
+      // Sync local cached users list - only on complete success
       const cachedUsersStr = localStorage.getItem('cached_users');
       if (cachedUsersStr) {
         try {
@@ -273,10 +268,13 @@ export default function UserManagement() {
       
       setShowDeleteModal(false);
       setUserToDelete(null);
+      toast.success('User deleted successfully from centralized database!');
       fetchUsers();
     } catch (err: any) {
       console.error('Error deleting user:', err);
-      setError(err.message || 'Failed to delete user. They might be linked to existing leads or tasks.');
+      const errMsg = err.message || 'Failed to delete user.';
+      setError(`Database Error: ${errMsg}. Make sure they are not linked to tasks or leads.`);
+      toast.error(`Database Error: ${errMsg}. Ensure user has no active assigned tasks or leads.`);
     } finally {
       setIsSubmitting(false);
     }

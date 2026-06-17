@@ -764,37 +764,31 @@ export default function App() {
         createdBy: currentUser.id
       };
 
-      try {
-        // Try inserting with all fields
-        const { error } = await getSupabase().from('leads').insert(leadToInsert);
-        
-        if (error) {
-          if (error.code === '23503') {
-            // Foreign key violation - user might have been deleted
-            console.error('Foreign key violation:', error);
-            toast.error('Your session is invalid. Please log in again.');
-            handleLogout();
-            throw new Error('Session invalid. Please log in again.');
-          }
-          
-          console.warn('Initial insert failed, retrying with sanitized data:', error);
-          // Retry without potentially missing columns
-          const { isPresentThisMonth, lostReason, website, alternateMobileNumber, followUpDate, leadId, ...essentialLead } = leadToInsert as any;
-          const { error: retryError } = await getSupabase().from('leads').insert(essentialLead);
-          if (retryError) throw retryError;
+      // Try inserting with all fields
+      const { error } = await getSupabase().from('leads').insert(leadToInsert);
+      
+      if (error) {
+        if (error.code === '23503') {
+          // Foreign key violation - user might have been deleted
+          console.error('Foreign key violation:', error);
+          toast.error('Your session is invalid. Please log in again.');
+          handleLogout();
+          throw new Error('Session invalid. Please log in again.');
         }
-      } catch (dbErr) {
-        console.warn('Supabase insert failed, storing lead locally:', dbErr);
-        const currentCachedLeads = JSON.parse(localStorage.getItem('cached_leads') || '[]');
-        const updatedLocal = [leadToInsert, ...currentCachedLeads];
-        localStorage.setItem('cached_leads', JSON.stringify(updatedLocal));
-        setLeads(updatedLocal);
+        
+        console.warn('Initial insert failed, retrying with sanitized data:', error);
+        // Retry without potentially missing columns
+        const { isPresentThisMonth, lostReason, website, alternateMobileNumber, followUpDate, leadId, ...essentialLead } = leadToInsert as any;
+        const { error: retryError } = await getSupabase().from('leads').insert(essentialLead);
+        if (retryError) throw retryError;
       }
       
       console.log('Lead added successfully');
+      toast.success('Lead records updated and synced!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding lead:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Please ensure the Supabase Real-time script has been run in Settings.`);
       throw error;
     }
   };
@@ -808,140 +802,109 @@ export default function App() {
         localStorage.setItem('lead_presence', JSON.stringify(localPresence));
       }
 
-      try {
-        // Try updating with all fields
-        const { error } = await getSupabase().from('leads').update(updatedLead).eq('id', updatedLead.id);
+      // Try updating with all fields
+      const { error } = await getSupabase().from('leads').update(updatedLead).eq('id', updatedLead.id);
+      
+      if (error) {
+        console.warn('Initial update failed, retrying with sanitized data:', error);
+        // Retry without potentially missing columns
+        const { isPresentThisMonth, ...dbLead } = updatedLead as any;
         
-        if (error) {
-          console.warn('Initial update failed, retrying with sanitized data:', error);
-          // Retry without potentially missing columns
-          const { isPresentThisMonth, ...dbLead } = updatedLead as any;
-          
-          // If it's still failing, it might be other fields. 
-          // Let's try to be more surgical if we can detect the column name in the error
-          const { error: retryError } = await getSupabase().from('leads').update(dbLead).eq('id', updatedLead.id);
-          
-          if (retryError) {
-            // Last resort: only update essential fields that are almost certainly there
-            const essentialFields = {
-              name: updatedLead.name,
-              email: updatedLead.email,
-              phone: updatedLead.phone,
-              company: updatedLead.company,
-              status: updatedLead.status,
-              value: updatedLead.value,
-              updatedAt: updatedLead.updatedAt,
-              notes: updatedLead.notes
-            };
-            const { error: finalRetryError } = await getSupabase().from('leads').update(essentialFields).eq('id', updatedLead.id);
-            if (finalRetryError) throw finalRetryError;
-          }
+        // If it's still failing, it might be other fields. 
+        // Let's try to be more surgical if we can detect the column name in the error
+        const { error: retryError } = await getSupabase().from('leads').update(dbLead).eq('id', updatedLead.id);
+        
+        if (retryError) {
+          // Last resort: only update essential fields that are almost certainly there
+          const essentialFields = {
+            name: updatedLead.name,
+            email: updatedLead.email,
+            phone: updatedLead.phone,
+            company: updatedLead.company,
+            status: updatedLead.status,
+            value: updatedLead.value,
+            updatedAt: updatedLead.updatedAt,
+            notes: updatedLead.notes
+          };
+          const { error: finalRetryError } = await getSupabase().from('leads').update(essentialFields).eq('id', updatedLead.id);
+          if (finalRetryError) throw finalRetryError;
         }
-      } catch (dbErr) {
-        console.warn('Supabase update failed, storing lead locally:', dbErr);
-        const currentCachedLeads = JSON.parse(localStorage.getItem('cached_leads') || '[]');
-        const updatedLocal = currentCachedLeads.map((l: Lead) => l.id === updatedLead.id ? updatedLead : l);
-        localStorage.setItem('cached_leads', JSON.stringify(updatedLocal));
-        setLeads(updatedLocal);
       }
       
+      toast.success('Lead changes updated globally!');
       await fetchData(); // Force refresh
-    } catch (error) {
-      console.error('Error updating text/lead:', error);
+    } catch (error: any) {
+      console.error('Error updating status/lead:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const deleteLead = async (id: string) => {
     try {
-      try {
-        const { error } = await getSupabase().from('leads').delete().eq('id', id);
-        if (error) throw error;
-      } catch (dbErr) {
-        console.warn('Supabase delete failed, storing locally:', dbErr);
-        const currentCachedLeads = JSON.parse(localStorage.getItem('cached_leads') || '[]');
-        const updatedLocal = currentCachedLeads.filter((l: Lead) => l.id !== id);
-        localStorage.setItem('cached_leads', JSON.stringify(updatedLocal));
-        setLeads(updatedLocal);
-      }
+      const { error } = await getSupabase().from('leads').delete().eq('id', id);
+      if (error) throw error;
+      
+      toast.success('Lead deleted from central server!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting lead:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const addTask = async (task: Task) => {
     try {
       console.log('Adding task:', task);
-      try {
-        const { error } = await getSupabase().from('tasks').insert(task);
-        if (error) {
-          console.error('Supabase error adding task:', error);
-          throw error;
-        }
-      } catch (dbErr) {
-        console.warn('Supabase task insert failed, storing locally:', dbErr);
-        const currentCachedTasks = JSON.parse(localStorage.getItem('cached_tasks') || '[]');
-        const updatedLocal = [task, ...currentCachedTasks];
-        localStorage.setItem('cached_tasks', JSON.stringify(updatedLocal));
-        setTasks(updatedLocal);
+      const { error } = await getSupabase().from('tasks').insert(task);
+      if (error) {
+        console.error('Supabase error adding task:', error);
+        throw error;
       }
+      toast.success('Task scheduled and synced across all devices!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding task:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Make sure the target lead exists.`);
       throw error;
     }
   };
 
   const updateTask = async (updatedTask: Task) => {
     try {
-      try {
-        const { error } = await getSupabase().from('tasks').update(updatedTask).eq('id', updatedTask.id);
-        if (error) throw error;
-      } catch (dbErr) {
-        console.warn('Supabase task update failed, storing locally:', dbErr);
-        const currentCachedTasks = JSON.parse(localStorage.getItem('cached_tasks') || '[]');
-        const updatedLocal = currentCachedTasks.map((t: Task) => t.id === updatedTask.id ? updatedTask : t);
-        localStorage.setItem('cached_tasks', JSON.stringify(updatedLocal));
-        setTasks(updatedLocal);
-      }
+      const { error } = await getSupabase().from('tasks').update(updatedTask).eq('id', updatedTask.id);
+      if (error) throw error;
+      
+      toast.success('Task progress updated globally!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating task:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const deleteTask = async (id: string) => {
     try {
-      try {
-        const { error } = await getSupabase().from('tasks').delete().eq('id', id);
-        if (error) throw error;
-      } catch (dbErr) {
-        console.warn('Supabase task delete failed, storing locally:', dbErr);
-        const currentCachedTasks = JSON.parse(localStorage.getItem('cached_tasks') || '[]');
-        const updatedLocal = currentCachedTasks.filter((t: Task) => t.id !== id);
-        localStorage.setItem('cached_tasks', JSON.stringify(updatedLocal));
-        setTasks(updatedLocal);
-      }
+      const { error } = await getSupabase().from('tasks').delete().eq('id', id);
+      if (error) throw error;
+      
+      toast.success('Task removed!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting task:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const addUser = async (user: User) => {
     try {
-      try {
-        await getSupabase().from('users').insert(user);
-      } catch (dbErr) {
-        console.warn('Supabase user insert failed, storing locally:', dbErr);
-        const currentCachedUsers = JSON.parse(localStorage.getItem('cached_users') || '[]');
-        const updatedLocal = [...currentCachedUsers, user];
-        localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
-        setUsers(updatedLocal);
-      }
+      const { error } = await getSupabase().from('users').insert(user);
+      if (error) throw error;
+      
+      toast.success('User updated successfully!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding user:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
@@ -954,57 +917,41 @@ export default function App() {
         localStorage.setItem('user_thresholds', JSON.stringify(thresholds));
       }
 
-      try {
-        const { error } = await getSupabase().from('users').update(updatedUser).eq('id', updatedUser.id);
-        
-        if (error) {
-          console.warn('User update failed, retrying with sanitized data:', error);
-          const { incentiveThreshold, ...sanitizedUser } = updatedUser as any;
-          const { error: retryError } = await getSupabase().from('users').update(sanitizedUser).eq('id', updatedUser.id);
-          if (retryError) throw retryError;
-        }
-      } catch (dbErr) {
-        console.warn('Supabase user update failed, storing locally:', dbErr);
-        const currentCachedUsers = JSON.parse(localStorage.getItem('cached_users') || '[]');
-        const updatedLocal = currentCachedUsers.map((u: User) => u.id === updatedUser.id ? updatedUser : u);
-        localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
-        setUsers(updatedLocal);
+      const { error } = await getSupabase().from('users').update(updatedUser).eq('id', updatedUser.id);
+      
+      if (error) {
+        console.warn('User update failed, retrying with sanitized data:', error);
+        const { incentiveThreshold, ...sanitizedUser } = updatedUser as any;
+        const { error: retryError } = await getSupabase().from('users').update(sanitizedUser).eq('id', updatedUser.id);
+        if (retryError) throw retryError;
       }
       
+      toast.success('User threshold settings updated globally!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating user:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const deleteUser = async (id: string) => {
     try {
-      try {
-        await getSupabase().from('users').delete().eq('id', id);
-      } catch (dbErr) {
-        console.warn('Supabase user delete failed, storing locally:', dbErr);
-        const currentCachedUsers = JSON.parse(localStorage.getItem('cached_users') || '[]');
-        const updatedLocal = currentCachedUsers.filter((u: User) => u.id !== id);
-        localStorage.setItem('cached_users', JSON.stringify(updatedLocal));
-        setUsers(updatedLocal);
-      }
+      const { error } = await getSupabase().from('users').delete().eq('id', id);
+      if (error) throw error;
+      
+      toast.success('User removed from centralized server!');
       await fetchData(); // Force refresh
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 
   const markNotificationRead = async (id: string) => {
     try {
-      try {
-        await getSupabase().from('notifications').update({ read: true }).eq('id', id);
-      } catch (dbErr) {
-        console.warn('Supabase update notification failed, storing locally:', dbErr);
-        const currentNotifications = JSON.parse(localStorage.getItem('cached_notifications') || '[]');
-        const updatedLocal = currentNotifications.map((n: Notification) => n.id === id ? { ...n, read: true } : n);
-        localStorage.setItem('cached_notifications', JSON.stringify(updatedLocal));
-        setNotifications(updatedLocal);
-      }
+      const { error } = await getSupabase().from('notifications').update({ read: true }).eq('id', id);
+      if (error) throw error;
+      await fetchData(); // Refresh local state
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -1012,15 +959,8 @@ export default function App() {
 
   const deleteNotification = async (id: string) => {
     try {
-      try {
-        await getSupabase().from('notifications').delete().eq('id', id);
-      } catch (dbErr) {
-        console.warn('Supabase delete notification failed, storing locally:', dbErr);
-        const currentNotifications = JSON.parse(localStorage.getItem('cached_notifications') || '[]');
-        const updatedLocal = currentNotifications.filter((n: Notification) => n.id !== id);
-        localStorage.setItem('cached_notifications', JSON.stringify(updatedLocal));
-        setNotifications(updatedLocal);
-      }
+      const { error } = await getSupabase().from('notifications').delete().eq('id', id);
+      if (error) throw error;
       await fetchData(); // Refresh local state
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -1030,16 +970,12 @@ export default function App() {
   const clearAllNotifications = async () => {
     if (!currentUser) return;
     try {
-      try {
-        await getSupabase().from('notifications').delete().eq('userId', currentUser.id);
-      } catch (dbErr) {
-        console.warn('Supabase clear notifications failed, storing locally:', dbErr);
-        localStorage.setItem('cached_notifications', JSON.stringify([]));
-        setNotifications([]);
-      }
+      const { error } = await getSupabase().from('notifications').delete().eq('userId', currentUser.id);
+      if (error) throw error;
       await fetchData(); // Refresh local state
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error clearing notifications:', error);
+      toast.error(`Database Sync Failed: ${error.message || error}. Check database schema under Settings.`);
     }
   };
 

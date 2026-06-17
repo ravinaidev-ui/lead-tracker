@@ -289,6 +289,18 @@ export default function Settings({
                   <p className="text-xs text-slate-500 leading-relaxed">
                     Copy and run the SQL code below in your **Supabase SQL Editor** to make sure all tables are created, real-time replication is configured, and global access is allowed.
                   </p>
+                  
+                  <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200/60 flex flex-col gap-1.5 text-xs text-amber-900 mt-2">
+                    <p className="font-extrabold flex items-center gap-1">
+                      ⚠️ Potential issue detected banner in Supabase?
+                    </p>
+                    <p className="leading-relaxed">
+                      When you click <strong>Run</strong> in your Supabase SQL Editor, Supabase will prompt you with a dialog saying <em>"Potential issue detected: This query creates tables without enabling Row Level Security..."</em>.
+                    </p>
+                    <p className="font-bold text-amber-950 bg-amber-100/50 p-2 rounded-lg border border-amber-200">
+                      👉 Click <u>"Run without RLS"</u>! This allows the dashboard updates to synchronize instantly across devices without being blocked by row security rules.
+                    </p>
+                  </div>
                 </div>
 
                 <div className="relative">
@@ -350,21 +362,63 @@ alter table public.leads replica identity full;
 alter table public.tasks replica identity full;
 alter table public.notifications replica identity full;
 
--- 3. ENABLE SUPABASE REALTIME REPLICATION BY PUBLISHING TO THE REALTIME SYSTEM
+-- 3. ENABLE SUPABASE REALTIME REPLICATION BY PUBLISHING TO THE REALTIME SYSTEM Safely
 do $$ 
 begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
+
+  -- Safely add public.users table if not already added to the publication
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'users'
+  ) then
+    alter publication supabase_realtime add table public.users;
+  end if;
+
+  -- Safely add public.leads table if not already added to the publication
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'leads'
+  ) then
+    alter publication supabase_realtime add table public.leads;
+  end if;
+
+  -- Safely add public.tasks table if not already added to the publication
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'tasks'
+  ) then
+    alter publication supabase_realtime add table public.tasks;
+  end if;
+
+  -- Safely add public.notifications table if not already added to the publication
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
 end $$;
 
--- SAFELY ADD EACH TABLE TO REALTIME IF NOT ALREADY IN THE PUBLICATION
-alter publication supabase_realtime add table public.users;
-alter publication supabase_realtime add table public.leads;
-alter publication supabase_realtime add table public.tasks;
-alter publication supabase_realtime add table public.notifications;
-
--- 4. DISABLE RLS or ENABLE PERMISSIVE POLICIES TO ENABLE GLOBAL COLLABORATION
+-- 4. DISABLE RLS TO ENABLE DYNAMIC GLOBAL SYNC & COLLABORATION
 alter table public.users disable row level security;
 alter table public.leads disable row level security;
 alter table public.tasks disable row level security;
@@ -429,12 +483,51 @@ begin
   if not exists (select 1 from pg_publication where pubname = 'supabase_realtime') then
     create publication supabase_realtime;
   end if;
-end $$;
 
-alter publication supabase_realtime add table public.users;
-alter publication supabase_realtime add table public.leads;
-alter publication supabase_realtime add table public.tasks;
-alter publication supabase_realtime add table public.notifications;
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'users'
+  ) then
+    alter publication supabase_realtime add table public.users;
+  end if;
+
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'leads'
+  ) then
+    alter publication supabase_realtime add table public.leads;
+  end if;
+
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'tasks'
+  ) then
+    alter publication supabase_realtime add table public.tasks;
+  end if;
+
+  if not exists (
+    select 1 
+    from pg_publication_rel pr 
+    join pg_publication p on p.oid = pr.prpubid 
+    join pg_class c on c.oid = pr.prrelid 
+    join pg_namespace n on n.oid = c.relnamespace 
+    where p.pubname = 'supabase_realtime' and n.nspname = 'public' and c.relname = 'notifications'
+  ) then
+    alter publication supabase_realtime add table public.notifications;
+  end if;
+end $$;
 
 alter table public.users disable row level security;
 alter table public.leads disable row level security;
