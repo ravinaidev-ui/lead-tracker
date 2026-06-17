@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #2596be;
+  --color-secondary: #e45729;
+  --color-accent: #e45729;
+  --color-dark: #2596be;
+  --color-light: #f0f9ff;
+  
+  /* Override slate colors with hex to avoid color parsing errors in export generation */
+  --color-slate-50: #f8fafc;
+  --color-slate-100: #f1f5f9;
+  --color-slate-200: #e2e8f0;
+  --color-slate-500: #64748b;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+
+  /* Additional colors for PDF generation compatibility */
+  --color-blue-50: #eff6ff;
+  --color-blue-600: #2563eb;
+  --color-green-50: #f0fdf4;
+  --color-green-600: #16a34a;
+  --color-orange-50: #fff7ed;
+  --color-orange-600: #ea580c;
+  --color-purple-50: #faf5ff;
+  --color-purple-600: #9333ea;
+}
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 selection:bg-primary/20 selection:text-primary;
+  }
+}
+
+.blue-orange-gradient {
+  background: linear-gradient(135deg, #0e9bcf 0%, #de5c00 100%);
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+}
+
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 5s ease infinite;
+}

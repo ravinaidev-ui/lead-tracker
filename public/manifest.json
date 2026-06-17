@@ -1,0 +1,21 @@
+{
+  "name": "Ravins Tech - DLP Portal",
+  "short_name": "Ravins Tech",
+  "description": "A professional DLP portal for management and tracking.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/dlp/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/dlp/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
