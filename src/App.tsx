@@ -96,8 +96,8 @@ export default function App() {
           }
         } else if (userDoc) {
           userFoundInDb = true;
-          // STRICT validation against the database: check if typed password matches stored password, allowing admin/admin as fallback
-          if (userDoc.password === password || (username === 'admin' && password === 'admin')) {
+          // STRICT validation against the database: check if typed password matches stored password
+          if (userDoc.password === password) {
             userData = {
               ...userDoc,
               role: (userDoc as any).role
@@ -135,8 +135,8 @@ export default function App() {
         }
 
         if (foundUser) {
-          // Validate password against cache copy, allowing admin/admin backup
-          if (foundUser.password === password || (username === 'admin' && password === 'admin')) {
+          // Validate password against cache copy strictly
+          if (foundUser.password === password) {
             console.log('User found in local cache with matching credentials:', foundUser.username);
             userData = foundUser;
           } else {
@@ -497,6 +497,34 @@ export default function App() {
           incentiveThreshold: u.incentiveThreshold !== undefined ? u.incentiveThreshold : (localThresholds[u.id] || 60000)
         }));
         setUsers(mergedUsers);
+
+        // SYNC CURRENT LOGGED-IN SESSION IN REAL-TIME IF UPDATED FROM ANOTHER DEVICE
+        if (currentUser) {
+          const remoteCurrentUser = mergedUsers.find(u => u.id === currentUser.id);
+          if (remoteCurrentUser) {
+            if (
+              remoteCurrentUser.password !== currentUser.password ||
+              remoteCurrentUser.name !== currentUser.name ||
+              remoteCurrentUser.role !== currentUser.role ||
+              remoteCurrentUser.email !== currentUser.email
+            ) {
+              console.log('Real-time database sync: profile info updated centrally, synchronizing logged-in session state.');
+              setCurrentUser(remoteCurrentUser);
+              localStorage.setItem('crm_user', JSON.stringify(remoteCurrentUser));
+              toast.info('Your profile settings have been updated in real-time from the database.');
+            }
+          } else {
+            // Delete check
+            const isNotDefaultAdmin = currentUser.id !== '00000000-0000-0000-0000-000000000000';
+            if (isNotDefaultAdmin) {
+              console.warn('Real-time database sync: logged-in user removed centrally, performing logout.');
+              setTimeout(() => {
+                handleLogout();
+                toast.error('Your user account has been deleted by an administrator.');
+              }, 100);
+            }
+          }
+        }
       }
 
       const { data: notificationsData, error: notifError } = await getSupabase()
