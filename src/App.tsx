@@ -48,6 +48,13 @@ const ADMIN_EMAILS = ['ravinnarasimman@gmail.com', 'ravrav94@gmail.com'];
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // High-reliability references to prevent stale render closures in background polling and websocket subscriptions
+  const currentUserRef = useRef<User | null>(null);
+  currentUserRef.current = currentUser;
+  
+  const fetchDataRef = useRef<() => Promise<void>>(undefined);
+
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'leads' | 'tasks' | 'reports' | 'settings' | 'users' | 'incentives' | 'trash'>('dashboard');
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -458,7 +465,8 @@ export default function App() {
 
   // Real-time Data Sync
   const fetchData = async () => {
-    if (!currentUser) return;
+    const activeUser = currentUserRef.current;
+    if (!activeUser) return;
     try {
       const { data: leadsData, error: leadsError } = await getSupabase().from('leads').select('*').order('createdAt', { ascending: false });
       if (leadsError) throw leadsError;
@@ -517,14 +525,14 @@ export default function App() {
         setUsers(mergedUsers);
 
         // SYNC CURRENT LOGGED-IN SESSION IN REAL-TIME IF UPDATED FROM ANOTHER DEVICE
-        if (currentUser) {
-          const remoteCurrentUser = mergedUsers.find(u => u.id === currentUser.id);
+        if (activeUser) {
+          const remoteCurrentUser = mergedUsers.find(u => u.id === activeUser.id);
           if (remoteCurrentUser) {
             if (
-              remoteCurrentUser.password !== currentUser.password ||
-              remoteCurrentUser.name !== currentUser.name ||
-              remoteCurrentUser.role !== currentUser.role ||
-              remoteCurrentUser.email !== currentUser.email
+              remoteCurrentUser.password !== activeUser.password ||
+              remoteCurrentUser.name !== activeUser.name ||
+              remoteCurrentUser.role !== activeUser.role ||
+              remoteCurrentUser.email !== activeUser.email
             ) {
               console.log('Real-time database sync: profile info updated centrally, synchronizing logged-in session state.');
               setCurrentUser(remoteCurrentUser);
@@ -533,7 +541,7 @@ export default function App() {
             }
           } else {
             // Delete check
-            const isNotDefaultAdmin = currentUser.id !== '00000000-0000-0000-0000-000000000000';
+            const isNotDefaultAdmin = activeUser.id !== '00000000-0000-0000-0000-000000000000';
             if (isNotDefaultAdmin) {
               console.warn('Real-time database sync: logged-in user removed centrally, performing logout.');
               setTimeout(() => {
@@ -548,7 +556,7 @@ export default function App() {
       const { data: notificationsData, error: notifError } = await getSupabase()
         .from('notifications')
         .select('*')
-        .eq('userId', currentUser.id)
+        .eq('userId', activeUser.id)
         .order('createdAt', { ascending: false });
       if (notifError) throw notifError;
       setNotifications(notificationsData || []);
@@ -598,10 +606,16 @@ export default function App() {
     }
   };
 
+  // Sync the latest fetchData callback to dynamic ref reader
+  fetchDataRef.current = fetchData;
+
   useEffect(() => {
     if (!currentUser || !isAuthReady) return;
 
-    fetchData();
+    // Trigger initial load
+    if (fetchDataRef.current) {
+      fetchDataRef.current();
+    }
 
     console.log('Initializing Centralized High-Reliability Sync Polling App & Realtime Listening...');
 
@@ -617,7 +631,9 @@ export default function App() {
             { event: '*', schema: 'public' },
             (payload) => {
               console.log('⚡ Realtime table mutation received:', payload);
-              fetchData();
+              if (fetchDataRef.current) {
+                fetchDataRef.current();
+              }
             }
           )
           .subscribe((status) => {
@@ -631,7 +647,9 @@ export default function App() {
     // 2. High-reliability Polling Sync (syncs everything every 10 seconds as a strong fallback)
     const pollInterval = setInterval(() => {
       console.log('🔄 Centralized background sync: Checking for database mutations...');
-      fetchData();
+      if (fetchDataRef.current) {
+        fetchDataRef.current();
+      }
     }, 10000);
 
     return () => {
