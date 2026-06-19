@@ -628,9 +628,49 @@ export default function App() {
           .channel('realtime-db-changes')
           .on(
             'postgres_changes',
+            { event: '*', schema: 'public', table: 'users' },
+            (payload) => {
+              console.log('⚡ Realtime "users" mutation received:', payload);
+              if (fetchDataRef.current) {
+                fetchDataRef.current();
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'leads' },
+            (payload) => {
+              console.log('⚡ Realtime "leads" mutation received:', payload);
+              if (fetchDataRef.current) {
+                fetchDataRef.current();
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'tasks' },
+            (payload) => {
+              console.log('⚡ Realtime "tasks" mutation received:', payload);
+              if (fetchDataRef.current) {
+                fetchDataRef.current();
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'notifications' },
+            (payload) => {
+              console.log('⚡ Realtime "notifications" mutation received:', payload);
+              if (fetchDataRef.current) {
+                fetchDataRef.current();
+              }
+            }
+          )
+          .on(
+            'postgres_changes',
             { event: '*', schema: 'public' },
             (payload) => {
-              console.log('⚡ Realtime table mutation received:', payload);
+              console.log('⚡ Realtime generic public schema mutation received:', payload);
               if (fetchDataRef.current) {
                 fetchDataRef.current();
               }
