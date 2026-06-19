@@ -207,24 +207,20 @@ export default function App() {
   const handleUpdateProfile = async (updatedData: Partial<User>) => {
     if (!currentUser) return;
     try {
-      try {
-        const payload = {
-          id: currentUser.id,
-          username: currentUser.username,
-          role: currentUser.role,
-          name: currentUser.name,
-          email: currentUser.email,
-          password: currentUser.password,
-          ...updatedData
-        };
+      const payload = {
+        name: currentUser.name,
+        email: currentUser.email,
+        password: currentUser.password,
+        ...updatedData
+      };
 
-        const { error } = await getSupabase()
-          .from('users')
-          .upsert(payload);
+      const { error } = await getSupabase()
+        .from('users')
+        .update(payload)
+        .eq('id', currentUser.id);
 
-        if (error) throw error;
-      } catch (dbErr) {
-        console.warn('Database profile update failed, falling back to local update:', dbErr);
+      if (error) {
+        throw new Error(`Database Sync Failed: ${error.message}`);
       }
 
       const newUser = { ...currentUser, ...updatedData };
@@ -253,10 +249,10 @@ export default function App() {
       localStorage.setItem('cached_users', JSON.stringify(updatedUsersList));
       setUsers(updatedUsersList);
       
-      toast.success('Profile updated successfully!');
-    } catch (error) {
+      toast.success('Profile updated successfully in the centralized database!');
+    } catch (error: any) {
       console.error('Error updating profile:', error);
-      toast.error('Failed to update profile');
+      toast.error(error.message || 'Failed to update profile in database.');
     }
   };
 
