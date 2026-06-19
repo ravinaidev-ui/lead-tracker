@@ -4,8 +4,19 @@ let _supabase: SupabaseClient | null = null;
 
 export const getSupabase = (): SupabaseClient => {
   if (!_supabase) {
-    const url = import.meta.env.VITE_SUPABASE_URL;
-    const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    let url = import.meta.env.VITE_SUPABASE_URL;
+    let key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // Auto-sanitize trailing slashes, whitespaces, and wrapping quotes
+    if (url) {
+      url = url.trim().replace(/^['"]|['"]$/g, '');
+      if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+      }
+    }
+    if (key) {
+      key = key.trim().replace(/^['"]|['"]$/g, '');
+    }
     
     if (!url || !key) {
       console.error('Supabase configuration missing. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.');
@@ -18,8 +29,13 @@ export const getSupabase = (): SupabaseClient => {
 };
 
 export const isSupabaseConfigured = (): boolean => {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  let url = import.meta.env.VITE_SUPABASE_URL;
+  let key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  if (!url || !key) return false;
+  
+  url = url.trim().replace(/^['"]|['"]$/g, '');
+  key = key.trim().replace(/^['"]|['"]$/g, '');
+  
   return !!(url && key && !url.includes('your-project-id') && !key.includes('your-anon-key'));
 };
 
