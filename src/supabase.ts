@@ -13,6 +13,12 @@ export const getSupabase = (): SupabaseClient => {
       if (url.endsWith('/')) {
         url = url.slice(0, -1);
       }
+      if (url.endsWith('/rest/v1')) {
+        url = url.slice(0, -8);
+      }
+      if (url.endsWith('/')) {
+        url = url.slice(0, -1);
+      }
     }
     if (key) {
       key = key.trim().replace(/^['"]|['"]$/g, '');
