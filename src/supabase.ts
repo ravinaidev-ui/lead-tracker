@@ -40,6 +40,15 @@ export const isSupabaseConfigured = (): boolean => {
   if (!url || !key) return false;
   
   url = url.trim().replace(/^['"]|['"]$/g, '');
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
+  if (url.endsWith('/rest/v1')) {
+    url = url.slice(0, -8);
+  }
+  if (url.endsWith('/')) {
+    url = url.slice(0, -1);
+  }
   key = key.trim().replace(/^['"]|['"]$/g, '');
   
   return !!(url && key && !url.includes('your-project-id') && !key.includes('your-anon-key'));

@@ -109,24 +109,6 @@ export default function App() {
               ...userDoc,
               role: (userDoc as any).role
             } as User;
-          } else if (username === 'admin' && password === 'admin') {
-            console.log('Synchronizing admin password mismatch in DB...');
-            userData = {
-              ...userDoc,
-              password: 'admin',
-              role: 'admin'
-            } as User;
-            getSupabase()
-              .from('users')
-              .update({ password: 'admin' })
-              .eq('id', userDoc.id)
-              .then(({ error }) => {
-                if (error) {
-                  console.error('Failed to sync admin password:', error);
-                } else {
-                  toast.success('Admin password synchronized successfully in database!');
-                }
-              });
           } else {
             throw new Error('Invalid password. Please check your password and try again.');
           }
