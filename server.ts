@@ -3,6 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import pg from "pg";
+import fs from "fs";
 
 // Load environment variables
 dotenv.config();
@@ -157,8 +158,11 @@ async function startServer() {
   });
 
   // Vite integration for asset rendering depending on execution mode
-  if (process.env.NODE_ENV !== "production") {
-    console.log("Mounting Vite Server middleware in background (Development Mode)...");
+  const distPath = path.join(process.cwd(), 'dist');
+  const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
+
+  if (process.env.NODE_ENV !== "production" || !hasDist) {
+    console.log("Mounting Vite Server middleware in background (Development Mode or fallback)...");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -166,7 +170,6 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     console.log("Serving static production built UI distribution (Production Mode)...");
-    const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
