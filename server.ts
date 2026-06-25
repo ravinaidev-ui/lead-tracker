@@ -171,7 +171,47 @@ async function startServer() {
   } else {
     console.log("Serving static production built UI distribution (Production Mode)...");
     app.use(express.static(distPath));
+
+    // Handle missing static assets to prevent returning index.html for assets
+    app.use((req, res, next) => {
+      const ext = path.extname(req.path).toLowerCase();
+      if (ext && ext !== '.html') {
+        if (ext === '.js') {
+          console.warn(`[Self-Healing] Missing JS asset requested: ${req.path}. Serving reload script.`);
+          res.setHeader('Content-Type', 'application/javascript');
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          return res.send(`
+            console.warn("Required asset ${req.path} was not found on the server. Initiating cache clearing and page reload...");
+            if ('serviceWorker' in navigator) {
+              navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                var promises = [];
+                for (var i = 0; i < registrations.length; i++) {
+                  promises.push(registrations[i].unregister());
+                }
+                return Promise.all(promises);
+              }).catch(function(err) {
+                console.error("Service worker unregistration error:", err);
+              }).finally(function() {
+                window.location.reload(true);
+              });
+            } else {
+              window.location.reload(true);
+            }
+          `);
+        } else {
+          console.warn(`[Static Asset] Not Found: ${req.path}`);
+          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          return res.status(404).send('Not Found');
+        }
+      }
+      next();
+    });
+
     app.get('*', (req, res) => {
+      // Set strict non-caching headers for index.html to ensure users always receive the newest build paths
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
       res.sendFile(path.join(distPath, 'index.html'));
     });
   }
