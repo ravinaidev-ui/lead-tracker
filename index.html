@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <script>
-      // Immediately and automatically unregister any existing service workers to prevent stale interception errors.
+      // Immediately and aggressively unregister any existing service workers and clear all browser caches to prevent stale interception errors.
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(function(registrations) {
           if (registrations && registrations.length > 0) {
@@ -13,10 +13,20 @@
               promises.push(registrations[i].unregister());
             }
             Promise.all(promises).then(function() {
-              console.log("Service workers successfully unregistered. Performing a hard reload...");
+              console.log("Service workers successfully unregistered.");
               if (!sessionStorage.getItem('sw_cleared_reload')) {
                 sessionStorage.setItem('sw_cleared_reload', '1');
-                window.location.reload(true);
+                if ('caches' in window) {
+                  caches.keys().then(function(keys) {
+                    return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+                  }).catch(function(){}).finally(function() {
+                    console.log("Caches cleared. Hard-reloading page...");
+                    window.location.reload(true);
+                  });
+                } else {
+                  console.log("Hard-reloading page...");
+                  window.location.reload(true);
+                }
               }
             });
           }
