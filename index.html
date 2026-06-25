@@ -2,6 +2,29 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Immediately and automatically unregister any existing service workers to prevent stale interception errors.
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          if (registrations && registrations.length > 0) {
+            console.log("Stale Service Worker(s) detected! Clearing " + registrations.length + " worker(s)...");
+            var promises = [];
+            for (var i = 0; i < registrations.length; i++) {
+              promises.push(registrations[i].unregister());
+            }
+            Promise.all(promises).then(function() {
+              console.log("Service workers successfully unregistered. Performing a hard reload...");
+              if (!sessionStorage.getItem('sw_cleared_reload')) {
+                sessionStorage.setItem('sw_cleared_reload', '1');
+                window.location.reload(true);
+              }
+            });
+          }
+        }).catch(function(err) {
+          console.error("Auto Service Worker cleanup failed:", err);
+        });
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>" />
