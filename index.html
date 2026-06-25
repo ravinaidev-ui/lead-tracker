@@ -7,6 +7,150 @@
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>" />
     <meta name="theme-color" content="#3b82f6" />
     <title>Ravins Tech - DLP Portal</title>
+    <script>
+      (function() {
+        var errLogs = [];
+        function logError(message, source, lineno, colno, error) {
+          var errorData = {
+            message: message,
+            source: source,
+            line: lineno,
+            col: colno,
+            stack: error ? error.stack : null
+          };
+          errLogs.push(errorData);
+          console.error("Global Error Captured:", errorData);
+          
+          // Send to backend
+          try {
+            fetch('/api/log-error', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(errorData)
+            }).catch(function(){});
+          } catch(e){}
+
+          // Display visual overlay after DOM loads
+          if (document.body) {
+            showErrorOverlay(errorData);
+          } else {
+            window.addEventListener('DOMContentLoaded', function() {
+              showErrorOverlay(errorData);
+            });
+          }
+        }
+
+        window.onerror = function(message, source, lineno, colno, error) {
+          logError(message, source, lineno, colno, error);
+          return false;
+        };
+
+        window.addEventListener('unhandledrejection', function(event) {
+          var reason = event.reason;
+          var msg = reason ? (reason.message || String(reason)) : 'Unhandled rejection';
+          var stack = reason ? reason.stack : null;
+          logError(msg, null, null, null, reason);
+        });
+
+        function showErrorOverlay(err) {
+          var overlay = document.getElementById('debug-error-overlay');
+          if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'debug-error-overlay';
+            overlay.style.position = 'fixed';
+            overlay.style.top = '10px';
+            overlay.style.left = '10px';
+            overlay.style.right = '10px';
+            overlay.style.backgroundColor = '#fef2f2';
+            overlay.style.border = '2px solid #ef4444';
+            overlay.style.borderRadius = '8px';
+            overlay.style.padding = '16px';
+            overlay.style.zIndex = '999999';
+            overlay.style.boxShadow = '0 10px 15px -3px rgba(0, 0, 0, 0.1)';
+            overlay.style.fontFamily = 'monospace';
+            overlay.style.fontSize = '12px';
+            overlay.style.color = '#991b1b';
+            overlay.style.maxHeight = '80vh';
+            overlay.style.overflowY = 'auto';
+
+            var title = document.createElement('h3');
+            title.style.margin = '0 0 8px 0';
+            title.style.fontSize = '14px';
+            title.style.fontWeight = 'bold';
+            title.style.display = 'flex';
+            title.style.alignItems = 'center';
+            title.style.justifyContent = 'space-between';
+            title.innerHTML = '⚠️ Client Runtime Error Captured';
+
+            var closeBtn = document.createElement('button');
+            closeBtn.innerText = '✕';
+            closeBtn.style.border = 'none';
+            closeBtn.style.background = 'none';
+            closeBtn.style.fontSize = '16px';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.color = '#ef4444';
+            closeBtn.onclick = function() { overlay.style.display = 'none'; };
+            title.appendChild(closeBtn);
+            overlay.appendChild(title);
+
+            var desc = document.createElement('p');
+            desc.style.margin = '0 0 12px 0';
+            desc.innerText = 'The application encountered an error while loading. Try the action below to reset your browser state.';
+            overlay.appendChild(desc);
+
+            var actions = document.createElement('div');
+            actions.style.display = 'flex';
+            actions.style.gap = '8px';
+            actions.style.marginBottom = '12px';
+
+            var reloadBtn = document.createElement('button');
+            reloadBtn.innerText = '🔄 Force Reset & Clear Cache';
+            reloadBtn.style.backgroundColor = '#ef4444';
+            reloadBtn.style.color = 'white';
+            reloadBtn.style.border = 'none';
+            reloadBtn.style.padding = '8px 12px';
+            reloadBtn.style.borderRadius = '4px';
+            reloadBtn.style.cursor = 'pointer';
+            reloadBtn.style.fontWeight = 'bold';
+            reloadBtn.onclick = function() {
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(regs) {
+                  var p = [];
+                  for (var i = 0; i < regs.length; i++) {
+                    p.push(regs[i].unregister());
+                  }
+                  return Promise.all(p);
+                }).catch(function(){}).finally(function() {
+                  window.location.reload(true);
+                });
+              } else {
+                window.location.reload(true);
+              }
+            };
+            actions.appendChild(reloadBtn);
+            overlay.appendChild(actions);
+
+            var codePre = document.createElement('pre');
+            codePre.id = 'debug-error-pre';
+            codePre.style.margin = '0';
+            codePre.style.padding = '10px';
+            codePre.style.backgroundColor = '#1e1e1e';
+            codePre.style.color = '#ef4444';
+            codePre.style.borderRadius = '4px';
+            codePre.style.whiteSpace = 'pre-wrap';
+            codePre.style.wordBreak = 'break-all';
+            overlay.appendChild(codePre);
+
+            document.body.appendChild(overlay);
+          }
+
+          var codePre = document.getElementById('debug-error-pre');
+          if (codePre) {
+            codePre.innerText = JSON.stringify(err, null, 2);
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

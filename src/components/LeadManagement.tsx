@@ -66,6 +66,27 @@ export default function LeadManagement({
   }, [editingLead]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Advanced Filter State Variables
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [assignedExecutiveFilter, setAssignedExecutiveFilter] = useState<string>('All');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [leadSourceFilter, setLeadSourceFilter] = useState<string>('All');
+  const [minValue, setMinValue] = useState<string>('');
+  const [maxValue, setMaxValue] = useState<string>('');
+
+  const leadSources = useMemo(() => {
+    const sources = new Set<string>();
+    leads.forEach(lead => {
+      if (lead.source) sources.add(lead.source);
+    });
+    return Array.from(sources);
+  }, [leads]);
+
+  const executives = useMemo(() => {
+    return users.filter(u => u.role === 'executive' || u.role === 'admin');
+  }, [users]);
 
   const calculateBasicIncentive = (amount: number) => {
     if (amount >= 80000) return amount * 0.05;
@@ -79,16 +100,48 @@ export default function LeadManagement({
       const matchesSearch = 
         lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         lead.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        lead.company.toLowerCase().includes(searchTerm.toLowerCase());
+        lead.company.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (lead.leadId && lead.leadId.toLowerCase().includes(searchTerm.toLowerCase()));
+
       const matchesStatus = statusFilter === 'All' 
         ? lead.status !== 'Trash' 
         : lead.status === statusFilter;
+
+      const matchesExecutive = assignedExecutiveFilter === 'All'
+        ? true
+        : lead.assignedTo === assignedExecutiveFilter;
+
+      let matchesDateRange = true;
+      if (startDate) {
+        const leadDate = new Date(lead.createdAt).getTime();
+        const filterStart = new Date(startDate + 'T00:00:00').getTime();
+        matchesDateRange = matchesDateRange && (leadDate >= filterStart);
+      }
+      if (endDate) {
+        const leadDate = new Date(lead.createdAt).getTime();
+        const filterEnd = new Date(endDate + 'T23:59:59').getTime();
+        matchesDateRange = matchesDateRange && (leadDate <= filterEnd);
+      }
+
+      const matchesSource = leadSourceFilter === 'All'
+        ? true
+        : lead.source === leadSourceFilter;
+
+      let matchesValue = true;
+      if (minValue) {
+        matchesValue = matchesValue && (lead.value >= Number(minValue));
+      }
+      if (maxValue) {
+        matchesValue = matchesValue && (lead.value <= Number(maxValue));
+      }
+
       const hasAccess = currentUser.role === 'admin' || 
                        lead.createdBy === currentUser.id || 
                        lead.assignedTo === currentUser.id;
-      return matchesSearch && matchesStatus && hasAccess;
+
+      return matchesSearch && matchesStatus && matchesExecutive && matchesDateRange && matchesSource && matchesValue && hasAccess;
     });
-  }, [leads, searchTerm, statusFilter, currentUser]);
+  }, [leads, searchTerm, statusFilter, assignedExecutiveFilter, startDate, endDate, leadSourceFilter, minValue, maxValue, currentUser]);
 
   const handleSaveLead = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -224,34 +277,35 @@ export default function LeadManagement({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
-            placeholder="Search leads by name, email or company..."
+            placeholder="Search leads by name, ID, email or company..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
           />
         </div>
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative shrink-0">
-            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-            <select 
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as any)}
-              className="pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm appearance-none cursor-pointer"
-            >
-              {initialStatusFilter !== 'Trash' && <option value="All">All Status</option>}
-              {STATUS_OPTIONS.filter(s => initialStatusFilter === 'Trash' ? s === 'Trash' : s !== 'Trash').map(status => (
-                <option key={status} value={status}>{status}</option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
-          </div>
+        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+          <button 
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 border rounded-xl text-sm font-medium transition-all active:scale-95 cursor-pointer",
+              showAdvancedFilters || statusFilter !== 'All' || assignedExecutiveFilter !== 'All' || startDate || endDate || leadSourceFilter !== 'All' || minValue || maxValue
+                ? "bg-primary/10 border-primary text-primary hover:bg-primary/20"
+                : "bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100"
+            )}
+          >
+            <Filter size={16} />
+            <span>Advanced Filters</span>
+            {(statusFilter !== 'All' || assignedExecutiveFilter !== 'All' || startDate || endDate || leadSourceFilter !== 'All' || minValue || maxValue) && (
+              <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+            )}
+          </button>
           {initialStatusFilter !== 'Trash' && (
             <button 
               onClick={() => {
                 setEditingLead(null);
                 setIsModalOpen(true);
               }}
-              className="bg-primary hover:bg-dark text-white px-4 py-2 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap text-sm font-semibold"
+              className="bg-primary hover:bg-dark text-white px-4 py-2 rounded-xl shadow-lg shadow-primary/20 flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap text-sm font-semibold cursor-pointer"
             >
               <Plus size={18} />
               Add Lead
@@ -259,6 +313,204 @@ export default function LeadManagement({
           )}
         </div>
       </div>
+
+      {/* Advanced Filter Panel */}
+      <AnimatePresence>
+        {showAdvancedFilters && (
+          <motion.div
+            initial={{ height: 0, opacity: 0, y: -10 }}
+            animate={{ height: 'auto', opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="overflow-hidden"
+          >
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+              {/* Status Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</label>
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value as any)}
+                    className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm appearance-none cursor-pointer"
+                  >
+                    {initialStatusFilter !== 'Trash' && <option value="All">All Statuses</option>}
+                    {STATUS_OPTIONS.filter(s => initialStatusFilter === 'Trash' ? s === 'Trash' : s !== 'Trash').map(status => (
+                      <option key={status} value={status}>{status}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+              </div>
+
+              {/* Assigned Executive Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Assigned Executive</label>
+                <div className="relative">
+                  <select
+                    value={assignedExecutiveFilter}
+                    onChange={(e) => setAssignedExecutiveFilter(e.target.value)}
+                    className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="All">All Executives</option>
+                    {executives.map(exec => (
+                      <option key={exec.id} value={exec.id}>{exec.name} ({exec.role})</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+              </div>
+
+              {/* Creation Date Range */}
+              <div className="space-y-1.5 lg:col-span-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Creation Date Range</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm text-slate-600"
+                  />
+                  <span className="text-slate-400 text-xs font-medium">to</span>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm text-slate-600"
+                  />
+                </div>
+              </div>
+
+              {/* Lead Source Filter */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Lead Source</label>
+                <div className="relative">
+                  <select
+                    value={leadSourceFilter}
+                    onChange={(e) => setLeadSourceFilter(e.target.value)}
+                    className="w-full pl-3 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm appearance-none cursor-pointer"
+                  >
+                    <option value="All">All Sources</option>
+                    {leadSources.map(src => (
+                      <option key={src} value={src}>{src}</option>
+                    ))}
+                  </select>
+                  <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={14} />
+                </div>
+              </div>
+
+              {/* Value Range Filter */}
+              <div className="space-y-1.5 col-span-1 md:col-span-2">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Value (INR)</label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={minValue}
+                    onChange={(e) => setMinValue(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                  />
+                  <span className="text-slate-400 text-xs font-medium">-</span>
+                  <input
+                    type="number"
+                    placeholder="Max"
+                    value={maxValue}
+                    onChange={(e) => setMaxValue(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Clear Action */}
+              <div className="flex items-end justify-end">
+                <button
+                  onClick={() => {
+                    setStatusFilter('All');
+                    setAssignedExecutiveFilter('All');
+                    setStartDate('');
+                    setEndDate('');
+                    setLeadSourceFilter('All');
+                    setMinValue('');
+                    setMaxValue('');
+                    setSearchTerm('');
+                  }}
+                  className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer"
+                >
+                  <X size={16} />
+                  Reset Filters
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Active Filter Badges */}
+      {(statusFilter !== 'All' || assignedExecutiveFilter !== 'All' || startDate || endDate || leadSourceFilter !== 'All' || minValue || maxValue) && (
+        <div className="flex flex-wrap items-center gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-xs text-slate-600">
+          <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px] mr-1">Active Filters:</span>
+          
+          {statusFilter !== 'All' && (
+            <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm font-medium">
+              Status: {statusFilter}
+              <button onClick={() => setStatusFilter('All')} className="hover:text-primary transition-colors ml-1 cursor-pointer">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {assignedExecutiveFilter !== 'All' && (
+            <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm font-medium">
+              Executive: {users.find(u => u.id === assignedExecutiveFilter)?.name || assignedExecutiveFilter}
+              <button onClick={() => setAssignedExecutiveFilter('All')} className="hover:text-primary transition-colors ml-1 cursor-pointer">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {(startDate || endDate) && (
+            <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm font-medium">
+              Created: {startDate || '...'} to {endDate || '...'}
+              <button onClick={() => { setStartDate(''); setEndDate(''); }} className="hover:text-primary transition-colors ml-1 cursor-pointer">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {leadSourceFilter !== 'All' && (
+            <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm font-medium">
+              Source: {leadSourceFilter}
+              <button onClick={() => setLeadSourceFilter('All')} className="hover:text-primary transition-colors ml-1 cursor-pointer">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          {(minValue || maxValue) && (
+            <span className="flex items-center gap-1 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-sm font-medium">
+              Value: {minValue ? `₹${minValue}` : '0'} - {maxValue ? `₹${maxValue}` : '∞'}
+              <button onClick={() => { setMinValue(''); setMaxValue(''); }} className="hover:text-primary transition-colors ml-1 cursor-pointer">
+                <X size={12} />
+              </button>
+            </span>
+          )}
+
+          <button 
+            onClick={() => {
+              setStatusFilter('All');
+              setAssignedExecutiveFilter('All');
+              setStartDate('');
+              setEndDate('');
+              setLeadSourceFilter('All');
+              setMinValue('');
+              setMaxValue('');
+            }}
+            className="text-primary hover:underline font-semibold ml-auto text-[11px] px-2 cursor-pointer"
+          >
+            Clear All
+          </button>
+        </div>
+      )}
 
       {/* Leads Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

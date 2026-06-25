@@ -157,6 +157,65 @@ async function startServer() {
     res.json({ status: "ok" });
   });
 
+  // Client-side JavaScript Error Logging Endpoint
+  app.post("/api/log-error", (req, res) => {
+    console.error("🔴 [CLIENT-SIDE ERROR CAPTURED]:", JSON.stringify(req.body, null, 2));
+    try {
+      const logPath = path.join(process.cwd(), 'src', 'client-errors.log');
+      fs.appendFileSync(logPath, `[${new Date().toISOString()}] ${JSON.stringify(req.body, null, 2)}\n\n`);
+    } catch (e) {
+      console.error("Failed to write error log file:", e);
+    }
+    res.json({ logged: true });
+  });
+
+  // Universal Stale Asset Interceptor: Intercept stale production hashed assets to clear cache & reload
+  app.use((req, res, next) => {
+    const isStaleJs = req.path.includes('/assets/index-') && req.path.endsWith('.js');
+    const isStaleCss = req.path.includes('/assets/index-') && req.path.endsWith('.css');
+
+    if (isStaleJs) {
+      console.warn(`[Self-Healing] Intercepted stale JS asset request: ${req.path}. Serving self-healing reload script.`);
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      return res.send(`
+        console.warn("Stale asset request intercepted: ${req.path}. Force unregistering service workers, clearing caches, and hard-reloading...");
+        if ('serviceWorker' in navigator) {
+          navigator.serviceWorker.getRegistrations().then(function(regs) {
+            var promises = [];
+            for (var i = 0; i < regs.length; i++) {
+              promises.push(regs[i].unregister());
+            }
+            return Promise.all(promises);
+          }).catch(function(err) {
+            console.error("Service worker clean error:", err);
+          }).finally(function() {
+            if ('caches' in window) {
+              caches.keys().then(function(keys) {
+                return Promise.all(keys.map(function(k) { return caches.delete(k); }));
+              }).catch(function(){}).finally(function() {
+                window.location.reload(true);
+              });
+            } else {
+              window.location.reload(true);
+            }
+          });
+        } else {
+          window.location.reload(true);
+        }
+      `);
+    }
+
+    if (isStaleCss) {
+      console.warn(`[Self-Healing] Intercepted stale CSS asset request: ${req.path}. Returning empty 404.`);
+      res.setHeader('Content-Type', 'text/css');
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+      return res.status(404).send('');
+    }
+
+    next();
+  });
+
   // Vite integration for asset rendering depending on execution mode
   const distPath = path.join(process.cwd(), 'dist');
   const hasDist = fs.existsSync(path.join(distPath, 'index.html'));
