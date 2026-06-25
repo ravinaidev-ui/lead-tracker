@@ -4,17 +4,18 @@ import App from './App.tsx';
 import './index.css';
 
 if ('serviceWorker' in navigator) {
-  try {
-    navigator.serviceWorker.getRegistrations().then((registrations) => {
-      for (const registration of registrations) {
-        registration.unregister().catch(() => {});
-      }
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').then((reg) => {
+      console.log('Service worker cleanup utility registered.');
     }).catch((err) => {
-      console.warn('Failed to get service worker registrations:', err);
+      // Non-blocking fallback
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      }).catch(() => {});
     });
-  } catch (err) {
-    console.warn('Service worker access threw error:', err);
-  }
+  });
 }
 
 createRoot(document.getElementById('root')!).render(
